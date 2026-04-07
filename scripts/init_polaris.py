@@ -1,6 +1,5 @@
 import requests
 import time
-import sys
 
 POLARIS_URL = "http://data_playground_polaris:8181"
 CLIENT_ID = "root"

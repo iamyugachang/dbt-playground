@@ -1,0 +1,51 @@
+schema: spec-driven
+
+context: |
+  # Data Playground
+
+  A local data stack demo and experimentation environment.
+
+  ## Tech Stack
+  - **Orchestration**: Dagster (Python, port 3000)
+  - **Transformations**: dbt (SQL models, port 8081 for docs)
+  - **Query Engine**: Trino (federated SQL, port 8080)
+  - **Iceberg Catalog**: Apache Polaris (REST catalog, port 8181)
+  - **Object Storage**: MinIO (S3-compatible, ports 9000/9001)
+  - **Relational DB**: PostgreSQL 15 (port 5432)
+  - **Containerization**: Docker Compose (all services)
+
+  ## Architecture
+  Dagster schedules dbt runs → dbt transforms data via Trino → Trino federates queries across Postgres (shop.customers) and Iceberg (events via Polaris → MinIO)
+
+  ## Repository Structure
+  - `apps/dagster-app/` — Dagster definitions (assets, schedules, Dockerfile)
+  - `apps/dbt-analytics/` — dbt project (models, seeds, sources, profiles)
+  - `infrastructure/trino/` — Trino config + catalog connectors
+  - `infrastructure/postgres/` — Postgres init SQL
+  - `infrastructure/dbt/` — dbt Dockerfile + profiles.yml
+  - `scripts/` — setup.sh, init_polaris.py, init_minio.py
+  - `docker-compose.yml` — all service definitions
+  - `openspec/` — specs, changes, and config (this directory)
+
+  ## Conventions
+  - All services run via `docker compose up -d --build`
+  - One-time init via `./scripts/setup.sh`
+  - dbt models live in `apps/dbt-analytics/models/`
+  - Dagster assets live in `apps/dagster-app/`
+  - Credentials are dev-only (hardcoded in docker-compose.yml): admin/password
+  - Iceberg tables land in MinIO bucket `warehouse` via Polaris catalog
+
+  ## Data Flow
+  - Source 1: `postgres.shop.customers` (seeded via infrastructure/postgres/init_data.sql)
+  - Source 2: `iceberg.public_data.events` (seeded once by setup.sh from CSV)
+  - Output: `iceberg.public.customer_summary` (Iceberg table, materialized by Dagster)
+
+rules:
+  proposal:
+    - Include impact on docker-compose.yml and existing services when relevant
+    - Note whether changes require re-running setup.sh or just restarting containers
+    - Identify which app (dagster-app, dbt-analytics) or infrastructure layer is affected
+  tasks:
+    - Scope tasks to a single service or layer (dbt, dagster, trino, infra)
+    - Include any docker/compose commands needed to apply the change
+    - Flag if a change requires data re-seeding or catalog re-initialization
