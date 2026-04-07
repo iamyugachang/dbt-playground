@@ -1,82 +1,80 @@
-# Data Playground (Trino, Iceberg, Polaris, dbt)
+# Data Playground
 
-This project demonstrates an ETL pipeline using dbt, Trino, Iceberg (MinIO), Apache Polaris, and Postgres. It is structured as a "Demonstration Hub" monorepo.
+A local data stack demo with Dagster, dbt, Trino, Iceberg, Apache Polaris, and Postgres.
 
 ## Architecture
 
-*   **Trino**: Query engine acting as the transformation layer.
-*   **Postgres**: Source database (Shop data).
-*   **MinIO**: Object storage for Iceberg tables.
-*   **Apache Polaris**: Iceberg REST Catalog for metadata management.
-*   **dbt**: Managing transformations and documentation.
+```
+Dagster  ──schedules──>  dbt  ──transforms──>  Trino
+                                                 ├── Postgres   (shop.customers)
+                                                 └── Iceberg    (events via Polaris -> MinIO)
+```
+
+| Service | Role | Port |
+|---------|------|------|
+| **Dagster** | Pipeline orchestration & scheduling | 3000 |
+| **dbt** | SQL transformations & docs | 8081 |
+| **Trino** | Federated query engine | 8080 |
+| **Apache Polaris** | Iceberg REST catalog | 8181 |
+| **MinIO** | S3-compatible object storage (Iceberg data) | 9000 / 9001 |
+| **Postgres** | Relational source (shop data) | 5432 |
+
+## Quick Start
+
+**1. Start all services**
+
+```bash
+docker compose up -d --build
+```
+
+**2. Run the setup script** (initializes Polaris, MinIO, seeds data, compiles dbt)
+
+```bash
+./scripts/setup.sh
+```
+
+That's it. Once setup completes:
+
+- **Dagster UI** → http://localhost:3000 — go to *Jobs* → `run_dbt_job` → *Materialize All*
+- **dbt Docs** → http://localhost:8081
+- **MinIO Console** → http://localhost:9001 (user: `admin`, password: `password`)
+
+## Data Flow
+
+```
+Postgres                 MinIO (S3)
+shop.customers    +    iceberg.public_data.events
+       │                        │
+       ▼                        ▼
+  stg_customers            stg_events
+            \               /
+             customer_summary   (Iceberg table in Trino)
+```
+
+- **Source 1** — `postgres.public.customers` (seeded via `infrastructure/postgres/init_data.sql`)
+- **Source 2** — `iceberg.public_data.events` (seeded once by setup.sh via `apps/dbt-analytics/seeds/iceberg/events.csv`)
+- **Output** — `iceberg.public.customer_summary` (materialized as an Iceberg table by Dagster on each run)
 
 ## Repository Structure
 
-*   `apps/`: Contains application code.
-    *   `dbt-analytics/`: The main dbt project.
-    *   `dagster-app/`: Dagster orchestration logic.
-*   `infrastructure/`: Configuration for infrastructure services.
-    *   `trino`, `postgres`, `polaris`, `dbt/docker`, `dbt/profiles`.
-*   `scripts/`: Shared initialization and utility scripts.
+```
+apps/
+  dbt-analytics/       # dbt project (models, seeds, sources)
+  dagster-app/         # Dagster definitions (assets, schedules)
+infrastructure/
+  trino/               # Trino config + catalog connectors
+  postgres/            # Postgres init SQL
+  dbt/                 # dbt Dockerfile + profiles.yml
+scripts/
+  setup.sh             # One-time initialization script
+  init_polaris.py      # Creates Polaris catalog + grants
+  init_minio.py        # Creates MinIO warehouse bucket
+```
 
-## Setup
+## Teardown
 
-1.  **Start Services**:
-    ```bash
-    docker compose up -d --build
-    ```
+```bash
+docker compose down -v   # stops containers and removes volumes
+```
 
-2.  **Initialize Polaris Catalog**:
-    Wait for Polaris (port 8181) to be ready, then run the initialization script. This script creates the `data_playground` catalog in Polaris.
-    ```bash
-    docker compose exec dbt python3 /scripts/init_polaris.py
-    ```
-
-3.  **Initialize MinIO Bucket**:
-    Create the `warehouse` bucket in MinIO.
-    ```bash
-    docker compose exec dbt python3 /scripts/init_minio.py
-    ```
-
-4.  **Initialize Iceberg Data**:
-    Run the SQL script to create the `iceberg.data.events` table in Trino (which talks to Polaris -> MinIO).
-    ```bash
-    # Load Iceberg Data (Trino)
-    docker compose exec dbt dbt seed --target dev --select iceberg
-
-    # Load Shop Data (Postgres)
-    docker compose exec dbt dbt seed --target shop --select shop
-    ```
-    *(Note: Using dbt seeds for data loading as per previous configuration)*
-
-5.  **Run dbt**:
-    Compile and run the dbt models.
-    ```bash
-    docker compose exec dbt dbt deps
-    docker compose exec dbt dbt debug
-    docker compose exec dbt dbt run
-    ```
-
-7.  **Run Dagster (Scheduling)**:
-    Access the Dagster UI at [http://localhost:3000](http://localhost:3000).
-    The schedule `every_10_min_schedule` is active.
-    
-    To manually trigger a run:
-    1.  Go to "Overview" -> "Jobs".
-    2.  Select `run_dbt_job`.
-    3.  Click "Materialize All".
-
-## dbt Documentation
-    The dbt documentation is automatically served at [http://localhost:8081](http://localhost:8081).
-    To update the docs after running models:
-    ```bash
-    # Try generating manually if needed, though container does it on start
-    docker compose exec dbt dbt docs generate
-    ```
-    Then refresh your browser.
-
-## Data Scenario
-
-*   **Source 1 (Postgres)**: `shop.public.customers`, `shop.public.products`.
-*   **Source 2 (Iceberg)**: `iceberg.data.events`.
-*   **Target (Trino View)**: `data_playground.marts.customer_activity`.
+Re-running `docker compose up -d --build` followed by `./scripts/setup.sh` will give you a fresh stack.

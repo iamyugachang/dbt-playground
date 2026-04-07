@@ -11,8 +11,6 @@ seeds:
   data_playground:
     iceberg:
       +schema: data
-    shop:
-      # No custom schema, lands in 'public' (target schema)
 
 seed-paths: ["seeds"]
 macro-paths: ["macros"]

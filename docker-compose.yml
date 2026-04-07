@@ -78,7 +78,7 @@ services:
       context: .
       dockerfile: infrastructure/dbt/docker/Dockerfile
     container_name: data_playground_dbt_runner
-    command: bash -c "until dbt debug; do echo 'Waiting for Trino...'; sleep 5; done; dbt docs generate || echo 'Docs generation failed'; dbt docs serve --port 8081 --host 0.0.0.0 || tail -f /dev/null"
+    command: bash -c "echo 'dbt container ready. Waiting for setup to complete...'; while [ ! -f target/index.html ]; do sleep 5; done; exec dbt docs serve --port 8081 --host 0.0.0.0"
     volumes:
       - ./apps/dbt-analytics:/usr/app/dbt_project
       # Mount profiles locally so they persist and are easy to edit
