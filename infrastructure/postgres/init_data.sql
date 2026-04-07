@@ -27,3 +27,19 @@ INSERT INTO products (name, price) VALUES
 ('Laptop', 999.99),
 ('Mouse', 29.99),
 ('Keyboard', 59.99);
+
+CREATE TABLE orders (
+    order_id SERIAL PRIMARY KEY,
+    customer_id INTEGER REFERENCES customers(id),
+    product_id INTEGER REFERENCES products(id),
+    quantity INTEGER,
+    order_date DATE
+);
+
+INSERT INTO orders (customer_id, product_id, quantity, order_date) VALUES
+(1, 1, 1, '2023-01-05'),
+(1, 3, 2, '2023-02-10'),
+(2, 2, 1, '2023-02-20'),
+(3, 1, 1, '2023-03-15'),
+(3, 2, 3, '2023-04-01'),
+(2, 3, 1, '2023-04-12');

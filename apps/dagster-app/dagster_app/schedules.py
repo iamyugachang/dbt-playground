@@ -1,15 +1,23 @@
 from dagster import ScheduleDefinition, define_asset_job
 
-from .assets import data_playground_dbt_assets
+from .assets import customer_dbt_assets, orders_dbt_assets
 
-# Define a job that materializes all the dbt assets
-run_dbt_job = define_asset_job(
-    name="run_dbt_job",
-    selection=[data_playground_dbt_assets],
+run_customer_job = define_asset_job(
+    name="run_customer_job",
+    selection=[customer_dbt_assets],
 )
 
-# Schedule the job to run every 10 minutes
-every_10_min_schedule = ScheduleDefinition(
-    job=run_dbt_job,
+run_orders_job = define_asset_job(
+    name="run_orders_job",
+    selection=[orders_dbt_assets],
+)
+
+customer_schedule = ScheduleDefinition(
+    job=run_customer_job,
+    cron_schedule="*/10 * * * *",
+)
+
+orders_schedule = ScheduleDefinition(
+    job=run_orders_job,
     cron_schedule="*/10 * * * *",
 )
